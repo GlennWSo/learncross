@@ -113,18 +113,25 @@
 
           fenixPkgs = fenix.packages.${buildSystem};
 
-          mkToolchain = fenixPkgs:
-            fenixPkgs.toolchainOf {
-              channel = "nightly";
-              date = "2023-07-23";
-              sha256 = "sha256-LU4C/i+maIOqBZagUaXpFyWZyOVfQ3Ah5/JTz7v6CG4=";
-            };
+          # mkToolchain = fenixPkgs:
+          #   fenixPkgs.toolchainOf {
+          #     channel = "nightly";
+          #     date = "2023-07-23";
+          #     sha256 = "sha256-LU4C/i+maIOqBZagUaXpFyWZyOVfQ3Ah5/JTz7v6CG4=";
+          #   };
+          # mkToolchain = fenixPkgs: fenixPkgs.combine [
+          #   minimal.cargo
+          #   minimal.rustc
 
-          toolchain = fenixPkgs.combine [
-            (mkToolchain fenixPkgs).rustc
-            (mkToolchain fenixPkgs).cargo
-            (mkToolchain fenixPkgs.targets.${rustTarget}).rust-std
-          ];
+          # ];
+
+          toolchain = with fenixPkgs;
+            combine [
+              minimal.rustc
+              minimal.cargo
+              targets.${rustTarget}.latest.rust-std
+              # (mkToolchain fenixPkgs.targets.${rustTarget}).rust-std
+            ];
 
           buildPackageAttrs =
             if builtins.hasAttr "makeBuildPackageAttrs" buildTargets.${targetSystem}
@@ -138,11 +145,11 @@
         in
           naersk-lib.buildPackage (buildPackageAttrs
             // rec {
-              # src = ./.;
-              src = fetchGit {
-                url = "https://github.com/GlennWSo/learncrossa";
-                rev = "0c0f75b595d7ce18ee6ab3b995de94494b36851e";
-              };
+              src = ./.;
+              # src = fetchGit {
+              #   url = "https://github.com/emilk/eframe_template";
+              #   rev = "4273d000067573adfe6097de62410487166e7cf3";
+              # };
               strictDeps = true;
               doCheck = false;
 
