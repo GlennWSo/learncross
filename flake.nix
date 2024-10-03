@@ -71,7 +71,8 @@
       // {
         pname = "mycrate-deps";
       });
-    native-linux = craneLib.buildPackage (nativeAttrs
+
+    native-nix = craneLib.buildPackage (nativeAttrs
       // {
         inherit cargoArtifacts;
         postFixup = ''
@@ -81,7 +82,7 @@
       });
 
     cross-win = craneLib.buildPackage {
-      src = craneLib.cleanCargoSource ./.;
+      src = src;
 
       strictDeps = true;
       doCheck = false;
@@ -104,8 +105,8 @@
   in {
     packages.${system} = {
       cross-win = cross-win;
-      native-linux = native-linux;
-      default = native-linux;
+      native-linux = native-nix;
+      default = native-nix;
     };
 
     checks = {
