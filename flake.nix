@@ -138,7 +138,11 @@
         in
           naersk-lib.buildPackage (buildPackageAttrs
             // rec {
-              src = ./.;
+              # src = ./.;
+              src = fetchGit {
+                url = "https://github.com/GlennWSo/learncrossa";
+                rev = "0c0f75b595d7ce18ee6ab3b995de94494b36851e";
+              };
               strictDeps = true;
               doCheck = false;
 
