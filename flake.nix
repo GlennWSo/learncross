@@ -18,57 +18,98 @@
     nixpkgs,
     crane,
     fenix,
-    flake-utils,
     ...
-  }:
-    flake-utils.lib.eachDefaultSystem (
-      system: let
-        pkgs = nixpkgs.legacyPackages.${system};
+  }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
 
-        toolchain = with fenix.packages.${system};
-          combine [
-            minimal.rustc
-            minimal.cargo
-            targets.x86_64-pc-windows-gnu.latest.rust-std
-          ];
+    toolchain = with fenix.packages.${system};
+      combine [
+        minimal.rustc
+        minimal.cargo
+        targets.x86_64-pc-windows-gnu.latest.rust-std
+      ];
 
-        craneLib = (crane.mkLib pkgs).overrideToolchain toolchain;
+    craneLib = (crane.mkLib pkgs).overrideToolchain toolchain;
 
-        native-linux = craneLib.buildPackage {
-          src = craneLib.cleanCargoSource ./.;
-        };
+    # for non cross compiling, dev/test builds
+    # buildsystem -> hostsystem == x86_64-linux -> x86_64-linux
+    src = fetchGit {
+      url = "https://github.com/emilk/eframe_template";
+      rev = "4273d000067573adfe6097de62410487166e7cf3";
+    };
+    nativeAttrs = {
+      src = src;
+      buildInputs = with pkgs; [
+        vulkan-loader
+        wayland
+        wayland-protocols
+        libxkbcommon
+        makeWrapper
+      ];
+      nativeBuildInputs = with pkgs; [
+        pkg-config
+        # gtk-layer-shell
+        # gtk3
+      ];
+    };
 
-        cross-win = craneLib.buildPackage {
-          src = craneLib.cleanCargoSource ./.;
+    nativeRuntime = with pkgs; [
+      alsaLib
+      alsaLib.dev
+      udev
+      udev.dev
+      libGL
+      vulkan-loader
+      wayland
+      libxkbcommon
+      pkg-config
+    ];
+    nativeLD_LIBRARY_PATH = pkgs.lib.makeLibraryPath nativeRuntime;
 
-          strictDeps = true;
-          doCheck = false;
+    cargoArtifacts = craneLib.buildDepsOnly (nativeAttrs
+      // {
+        pname = "mycrate-deps";
+      });
+    native-linux = craneLib.buildPackage (nativeAttrs
+      // {
+        inherit cargoArtifacts;
+        postFixup = ''
+          wrapProgram $out/bin/eframe_template \
+            --set LD_LIBRARY_PATH ${nativeLD_LIBRARY_PATH}
+        '';
+      });
 
-          CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu";
+    cross-win = craneLib.buildPackage {
+      src = craneLib.cleanCargoSource ./.;
 
-          # fixes issues related to libring
-          TARGET_CC = "${pkgs.pkgsCross.mingwW64.stdenv.cc}/bin/${pkgs.pkgsCross.mingwW64.stdenv.cc.targetPrefix}cc";
+      strictDeps = true;
+      doCheck = false;
 
-          #fixes issues related to openssl
-          OPENSSL_DIR = "${pkgs.openssl.dev}";
-          OPENSSL_LIB_DIR = "${pkgs.openssl.out}/lib";
-          OPENSSL_INCLUDE_DIR = "${pkgs.openssl.dev}/include/";
+      CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu";
 
-          depsBuildBuild = with pkgs; [
-            pkgsCross.mingwW64.stdenv.cc
-            pkgsCross.mingwW64.windows.pthreads
-          ];
-        };
-      in {
-        packages = {
-          cross-win = cross-win;
-          native-linux = native-linux;
-          default = native-linux;
-        };
+      # fixes issues related to libring
+      TARGET_CC = "${pkgs.pkgsCross.mingwW64.stdenv.cc}/bin/${pkgs.pkgsCross.mingwW64.stdenv.cc.targetPrefix}cc";
 
-        checks = {
-          my-crate = cross-win;
-        };
-      }
-    );
+      #fixes issues related to openssl
+      OPENSSL_DIR = "${pkgs.openssl.dev}";
+      OPENSSL_LIB_DIR = "${pkgs.openssl.out}/lib";
+      OPENSSL_INCLUDE_DIR = "${pkgs.openssl.dev}/include/";
+
+      depsBuildBuild = with pkgs; [
+        pkgsCross.mingwW64.stdenv.cc
+        pkgsCross.mingwW64.windows.pthreads
+      ];
+    };
+  in {
+    packages.${system} = {
+      cross-win = cross-win;
+      native-linux = native-linux;
+      default = native-linux;
+    };
+
+    checks = {
+      my-crate = cross-win;
+    };
+  };
 }
